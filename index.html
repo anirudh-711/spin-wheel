@@ -51,7 +51,8 @@ drawWheel();
 let angle = 0;
 
 function spin() {
-  let randomSpin = Math.random() * 2000 + 2000;
+  let forcedIndex = 6; // choose result manually
+let randomSpin = (options.length - forcedIndex) * (360 / options.length) + 360 * 5;
   let duration = 3000;
   let start = null;
 
