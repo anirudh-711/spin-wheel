@@ -3,15 +3,54 @@
 <head>
   <title>Spin the Wheel</title>
   <style>
-    body { text-align: center; font-family: Arial; }
-    canvas { margin-top: 20px; }
-    button { padding: 10px 20px; font-size: 18px; }
+    body {
+      text-align: center;
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(to right, #1e1e2f, #2c2c54);
+      color: white;
+    }
+
+    h1 {
+      margin-top: 20px;
+    }
+
+    canvas {
+      margin-top: 20px;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 12px 25px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      background: #ff4757;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #ff6b81;
+    }
+
+    /* POINTER */
+    .pointer {
+      width: 0;
+      height: 0;
+      border-left: 15px solid transparent;
+      border-right: 15px solid transparent;
+      border-bottom: 30px solid #ffffff;
+      margin: 0 auto;
+    }
   </style>
 </head>
 <body>
 
 <h1>🎡 Spin the Wheel</h1>
-<canvas id="wheel" width="400" height="400"></canvas><br>
+
+<div class="pointer"></div>
+<canvas id="wheel" width="500" height="500"></canvas><br>
+
 <button onclick="spin()">SPIN</button>
 
 <script>
@@ -28,45 +67,53 @@ const options = [
 
 const canvas = document.getElementById("wheel");
 const ctx = canvas.getContext("2d");
+
+// 🔥 HD FIX (IMPORTANT)
+const scale = window.devicePixelRatio;
+canvas.width = 500 * scale;
+canvas.height = 500 * scale;
+canvas.style.width = "500px";
+canvas.style.height = "500px";
+ctx.scale(scale, scale);
+
 const arc = (2 * Math.PI) / options.length;
 
-function drawWheel() {
+function drawWheel(rotation = 0) {
+  ctx.clearRect(0, 0, 500, 500);
+
   for (let i = 0; i < options.length; i++) {
     ctx.beginPath();
-    ctx.fillStyle = `hsl(${i * 45}, 70%, 60%)`;
-    ctx.moveTo(200, 200);
-    ctx.arc(200, 200, 200, i * arc, (i + 1) * arc);
+    ctx.fillStyle = `hsl(${i * 45}, 70%, 55%)`;
+    ctx.moveTo(250, 250);
+    ctx.arc(250, 250, 250, i * arc + rotation, (i + 1) * arc + rotation);
     ctx.fill();
+
     ctx.save();
-    ctx.translate(200, 200);
-    ctx.rotate(i * arc + arc / 2);
-    ctx.fillStyle = "#000";
-    ctx.fillText(options[i], 100, 0);
+    ctx.translate(250, 250);
+    ctx.rotate(i * arc + arc / 2 + rotation);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 16px Poppins";
+    ctx.textAlign = "right";
+    ctx.fillText(options[i], 220, 10);
     ctx.restore();
   }
 }
 
-drawWheel();
-
 let angle = 0;
 
 function spin() {
-  let forcedIndex = 6; // choose result manually
-let randomSpin = (options.length - forcedIndex) * (360 / options.length) + 360 * 5;
+  let spinAngle = Math.random() * 2000 + 3000;
   let duration = 3000;
   let start = null;
 
   function animate(timestamp) {
     if (!start) start = timestamp;
     let progress = timestamp - start;
-    angle += randomSpin / duration;
-    ctx.clearRect(0, 0, 400, 400);
-    ctx.save();
-    ctx.translate(200, 200);
-    ctx.rotate(angle);
-    ctx.translate(-200, -200);
-    drawWheel();
-    ctx.restore();
+
+    let easeOut = 1 - Math.pow(1 - progress / duration, 3);
+    angle = (spinAngle * easeOut) * Math.PI / 180;
+
+    drawWheel(angle);
 
     if (progress < duration) {
       requestAnimationFrame(animate);
@@ -75,6 +122,9 @@ let randomSpin = (options.length - forcedIndex) * (360 / options.length) + 360 *
 
   requestAnimationFrame(animate);
 }
+
+// Initial draw
+drawWheel();
 </script>
 
 </body>
