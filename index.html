@@ -195,6 +195,405 @@
 
 <script>
 const OPTIONS = [
+  { title: "MIC DROP MOMENT",          sub: "Sing a song (solo or duet)",                       color: "#E91E63" },
+  { title: "DANCE FLOOR TAKEOVER",     sub: "Freestyle / Duet dance",                           color: "#FF6B1A" },
+  { title: "FACULTY MODE ON",          sub: "Act like your favourite faculty",                  color: "#7A2BD6" },
+  { title: "CONFESS YOUR FEELINGS",    sub: "Share a heartfelt confession with the room",       color: "#1BB6C1" },
+  { title: "GUESS WHO? CLASS EDITION", sub: "Act like a classmate — others guess who it is!",   color: "#6CC04A" },
+];
+const SIZE = 560;
+const arc = (2*Math.PI) / OPTIONS.length;
+
+const canvas = document.getElementById("wheel");
+const ctx = canvas.getContext("2d");
+canvas.style.width = SIZE + "px";
+canvas.style.height = SIZE + "px";
+
+let rotation = 0, animating = false, muted = false, lastTickSlice = -1;
+let audioCtx = null;
+const getAudio = () => {
+  if (!audioCtx) { const C = window.AudioContext || window.webkitAudioContext; if (C) audioCtx = new C(); }
+  return audioCtx;
+};
+const playTick = () => {
+  const a = getAudio(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = "square"; o.frequency.setValueAtTime(1600, a.currentTime);
+  g.gain.setValueAtTime(.0001, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(.12, a.currentTime + .005);
+  g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + .05);
+  o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime + .06);
+};
+const playFanfare = () => {
+  const a = getAudio(); if (!a) return; const now = a.currentTime;
+  const notes = [{f:523.25,t:0},{f:659.25,t:.12},{f:783.99,t:.24},{f:1046.5,t:.36},{f:1046.5,t:.55}];
+  notes.forEach(({f,t},i) => {
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = "triangle"; o.frequency.setValueAtTime(f, now+t);
+    const d = i === notes.length-1 ? .6 : .16;
+    g.gain.setValueAtTime(.0001, now+t);
+    g.gain.exponentialRampToValueAtTime(.22, now+t+.01);
+    g.gain.exponentialRampToValueAtTime(.0001, now+t+d);
+    o.connect(g).connect(a.destination); o.start(now+t); o.stop(now+t+d+.05);
+  });
+};
+const burst = () => {
+  const colors = ["#E91E63","#FF6B1A","#7A2BD6","#1BB6C1","#6CC04A","#FFD700","#FFFFFF"];
+  confetti({ particleCount:160, spread:360, startVelocity:45, scalar:1.2, colors, origin:{x:.5,y:.45} });
+  setTimeout(()=>{ confetti({ particleCount:90, angle:60, spread:70, colors, origin:{x:0,y:.7} });
+                   confetti({ particleCount:90, angle:120, spread:70, colors, origin:{x:1,y:.7} }); },180);
+  setTimeout(()=>{ confetti({ particleCount:70, startVelocity:55, spread:100, scalar:1.4, gravity:.6, ticks:200, colors, origin:{x:.5,y:.3}, shapes:["circle","square"] }); },360);
+};
+
+function shade(hex, p) {
+  const n = parseInt(hex.slice(1),16);
+  const r = Math.min(255,Math.max(0,((n>>16)&255)+p));
+  const g = Math.min(255,Math.max(0,((n>>8)&255)+p));
+  const b = Math.min(255,Math.max(0,(n&255)+p));
+  return `rgb(${r},${g},${b})`;
+}
+
+function wrapLines(ctx, text, maxWidth) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let cur = "";
+  for (const w of words) {
+    const test = cur ? cur + " " + w : w;
+    if (ctx.measureText(test).width > maxWidth && cur) {
+      lines.push(cur);
+      cur = w;
+    } else {
+      cur = test;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+function draw(rot) {
+  const dpr = window.devicePixelRatio || 1;
+  if (canvas.width !== SIZE*dpr) { canvas.width = SIZE*dpr; canvas.height = SIZE*dpr; }
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,SIZE,SIZE);
+  const cx = SIZE/2, cy = SIZE/2, r = SIZE/2 - 18;
+
+  const g1 = ctx.createLinearGradient(0,0,SIZE,SIZE);
+  g1.addColorStop(0,"#FFD36E"); g1.addColorStop(.5,"#FF7AB6"); g1.addColorStop(1,"#7CF0BD");
+  ctx.beginPath(); ctx.arc(cx,cy,r+14,0,Math.PI*2); ctx.fillStyle=g1; ctx.fill();
+
+  ctx.save(); ctx.beginPath(); ctx.arc(cx,cy,r+6,0,Math.PI*2);
+  ctx.lineWidth=3; ctx.setLineDash([6,8]); ctx.strokeStyle="rgba(255,255,255,.75)"; ctx.stroke(); ctx.restore();
+
+  for (let i=0; i<OPTIONS.length; i++) {
+    const opt = OPTIONS[i];
+    const s = i*arc + rot - Math.PI/2, e = s + arc;
+
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,s,e); ctx.closePath();
+    const rg = ctx.createRadialGradient(cx,cy,r*.15,cx,cy,r);
+    rg.addColorStop(0, shade(opt.color,18)); rg.addColorStop(1, opt.color);
+    ctx.fillStyle = rg; ctx.fill();
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(255,255,255,.95)"; ctx.stroke();
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(s + arc/2 + Math.PI/2);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#FFFFFF";
+
+    ctx.font = "800 26px Fredoka, system-ui, sans-serif";
+    ctx.shadowColor = "rgba(0,0,0,0.25)"; ctx.shadowBlur = 4;
+    ctx.fillText(String(i + 1), 0, -r * 0.78);
+
+    ctx.font = "800 17px Fredoka, system-ui, sans-serif";
+    const titleLines = wrapLines(ctx, opt.title, r * 0.62);
+    let y = -r * 0.62;
+    for (const line of titleLines) { ctx.fillText(line, 0, y); y += 19; }
+
+    ctx.fillStyle = "#FFE14D";
+    ctx.font = "600 11px Fredoka, system-ui, sans-serif";
+    const subLines = wrapLines(ctx, opt.sub, r * 0.58);
+    y += 6;
+    for (const line of subLines) { ctx.fillText(line, 0, y); y += 14; }
+
+    ctx.restore();
+
+    const da = s + arc/2;
+    ctx.beginPath(); ctx.arc(cx+Math.cos(da)*(r-8), cy+Math.sin(da)*(r-8), 3.5, 0, Math.PI*2);
+    ctx.fillStyle="#fff"; ctx.fill();
+  }
+
+  const hg = ctx.createRadialGradient(cx-10,cy-10,4,cx,cy,55);
+  hg.addColorStop(0,"#fff"); hg.addColorStop(.6,"#FFE29A"); hg.addColorStop(1,"#FF7AB6");
+  ctx.beginPath(); ctx.arc(cx,cy,48,0,Math.PI*2); ctx.fillStyle=hg; ctx.fill();
+  ctx.lineWidth=4; ctx.strokeStyle="#0B0720"; ctx.stroke();
+  ctx.fillStyle="#0B0720"; ctx.font="900 22px Fredoka, system-ui, sans-serif";
+  ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("SPIN", cx, cy);
+}
+
+function spin() {
+  if (animating) return;
+  const a = getAudio(); if (a && a.state === "suspended") a.resume();
+  animating = true;
+  document.getElementById("spinBtn").disabled = true;
+  closeModal();
+
+  const duration = 5200 + Math.random()*800;
+  const turns = 5 + Math.floor(Math.random()*3);
+  const target = Math.floor(Math.random() * OPTIONS.length);
+  const landing = 2*Math.PI - (target*arc + arc/2);
+  const start = rotation % (2*Math.PI);
+  const delta = turns*2*Math.PI + (((landing - start) % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+  const t0 = performance.now(); lastTickSlice = -1;
+
+  function frame(now) {
+    const t = Math.min((now - t0)/duration, 1);
+    const eased = 1 - Math.pow(1 - t, 5);
+    rotation = start + delta * eased;
+    draw(rotation);
+
+    const norm = ((rotation % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+    const idx = Math.floor(norm / arc);
+    if (idx !== lastTickSlice) { lastTickSlice = idx; if (!muted && t > .02) playTick(); }
+
+    if (t < 1) requestAnimationFrame(frame);
+    else {
+      animating = false;
+      document.getElementById("spinBtn").disabled = false;
+      showWinner(OPTIONS[target]);
+      if (!muted) playFanfare();
+      burst();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function showWinner(opt) {
+  document.getElementById("winnerText").textContent = opt.title;
+  document.getElementById("winnerSub").textContent = opt.sub;
+  document.getElementById("backdrop").classList.add("open");
+}
+function closeModal() { document.getElementById("backdrop").classList.remove("open"); }
+
+document.getElementById("spinBtn").addEventListener("click", spin);
+document.getElementById("resetBtn").addEventListener("click", () => { if (!animating) { rotation = 0; draw(0); closeModal(); } });
+document.getElementById("muteBtn").addEventListener("click", () => {
+  muted = !muted;
+  const svg = document.getElementById("muteIcon");
+  svg.innerHTML = muted
+    ? '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>'
+    : '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>';
+});
+document.getElementById("spinAgain").addEventListener("click", () => { closeModal(); setTimeout(spin, 250); });
+document.getElementById("closeBtn").addEventListener("click", closeModal);
+document.getElementById("closeX").addEventListener("click", closeModal);
+document.getElementById("backdrop").addEventListener("click", e => { if (e.target.id === "backdrop") closeModal(); });
+
+draw(0);
+</script>
+
+</body>
+</html>
+Only change: segment 4 is now "CONFESS YOUR FEELINGS" — "Share a heartfelt confession with the room" (kept the same teal color so the wheel layout stays identical). If you'd prefer a different subtitle (e.g., "Confess to your crush" or "Reveal a secret crush"), just swap the sub text on that line.
+
+Apr 25, 12:13 PM
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Spin the Wheel — Party Night</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; min-height: 100vh; font-family: 'Fredoka', system-ui, sans-serif; color: #fff; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(255,179,71,.25), transparent 60%),
+      radial-gradient(1000px 500px at 110% 10%, rgba(168,85,247,.3), transparent 55%),
+      radial-gradient(900px 500px at 50% 120%, rgba(244,63,94,.35), transparent 60%),
+      linear-gradient(135deg,#2b0f4a 0%,#3d1260 35%,#6d1b6b 65%,#c0316b 100%);
+    overflow-x: hidden;
+    position: relative;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none;
+    background-image:
+      radial-gradient(rgba(255,255,255,.08) 1.5px, transparent 1.6px),
+      radial-gradient(rgba(255,255,255,.05) 1px, transparent 1.2px);
+    background-size: 28px 28px, 14px 14px;
+    background-position: 0 0, 7px 7px;
+    mix-blend-mode: screen;
+  }
+  .orbs { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+  .orb { position: absolute; border-radius: 50%; filter: blur(40px); opacity: .4; animation: float 11s ease-in-out infinite; }
+  .orb.o1 { top: 8%; left: 6%; width: 100px; height: 100px; background: #fb7185; }
+  .orb.o2 { top: 18%; right: 8%; width: 130px; height: 130px; background: #fcd34d; animation-duration: 13s; }
+  .orb.o3 { bottom: 10%; left: 10%; width: 120px; height: 120px; background: #6ee7b7; animation-duration: 10s; }
+  .orb.o4 { bottom: 14%; right: 14%; width: 100px; height: 100px; background: #38bdf8; animation-duration: 12s; }
+  .orb.o5 { top: 45%; left: 2%; width: 80px; height: 80px; background: #e879f9; animation-duration: 14s; }
+  @keyframes float { 0%,100%{transform:translate(0,0);} 50%{transform:translate(8px,-20px);} }
+
+  .wrap { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 40px 16px 60px; text-align: center; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 16px; border-radius: 999px;
+    background: rgba(255,255,255,.15); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.25);
+    font-size: 12px; letter-spacing: .25em; text-transform: uppercase;
+  }
+  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #fcd34d; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+  h1 {
+    margin: 18px 0 6px; font-size: clamp(42px, 6vw, 72px); font-weight: 800; line-height: 1;
+    background: linear-gradient(90deg,#fde68a,#fecaca,#f0abfc);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 4px 20px rgba(255,90,160,.3);
+  }
+  .sub { color: rgba(255,255,255,.8); font-size: 16px; margin: 8px auto 30px; max-width: 520px; }
+
+  .wheel-area { position: relative; display: inline-flex; flex-direction: column; align-items: center; }
+  .pointer { position: relative; z-index: 5; margin-bottom: -10px; filter: drop-shadow(0 8px 20px rgba(255,200,40,.6)); }
+  .wheel-wrap { position: relative; }
+  .glow {
+    position: absolute; inset: -20px; border-radius: 50%; filter: blur(50px); opacity: .55;
+    background: conic-gradient(from 0deg,#ff3366,#ffb020,#22d3a6,#3b82f6,#a855f7,#f97316,#eab308,#ff3366);
+    animation: spinGlow 14s linear infinite;
+  }
+  @keyframes spinGlow { to { transform: rotate(360deg); } }
+  canvas#wheel { position: relative; z-index: 2; border-radius: 50%; box-shadow: 0 30px 80px -20px rgba(255,30,120,.55); display: block; }
+
+  .controls { display: flex; gap: 14px; justify-content: center; margin-top: 30px; flex-wrap: wrap; }
+  button {
+    font-family: inherit; cursor: pointer; border: none; font-weight: 700;
+    transition: transform .15s ease, box-shadow .2s ease, opacity .2s ease;
+  }
+  button:active { transform: scale(.96); }
+  button:disabled { opacity: .6; cursor: not-allowed; }
+  .spin-btn {
+    height: 56px; padding: 0 36px; font-size: 18px; border-radius: 999px; color: #0b0720;
+    background: linear-gradient(90deg,#f43f5e,#d946ef,#f59e0b);
+    box-shadow: 0 10px 30px -5px rgba(244,63,94,.6);
+    letter-spacing: .04em;
+  }
+  .spin-btn:hover:not(:disabled) { transform: scale(1.03); }
+  .icon-btn {
+    height: 56px; width: 56px; border-radius: 999px; color: #fff;
+    background: rgba(255,255,255,.1); backdrop-filter: blur(8px);
+    border: 2px solid rgba(255,255,255,.4);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .icon-btn:hover:not(:disabled) { background: rgba(255,255,255,.2); }
+  .icon-btn svg { width: 22px; height: 22px; }
+
+  .footer { margin-top: 40px; color: rgba(255,255,255,.6); font-size: 12px; letter-spacing: .15em; }
+
+  /* Winner Modal */
+  .backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+    display: none; align-items: center; justify-content: center; z-index: 50;
+    animation: fadeIn .25s ease;
+  }
+  .backdrop.open { display: flex; }
+  @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+  .modal {
+    width: min(480px, 92vw); border-radius: 20px; padding: 30px 24px; text-align: center;
+    background: linear-gradient(135deg,#2b1055,#5b1d7a,#ff3366); color: #fff;
+    box-shadow: 0 40px 120px -10px rgba(255,60,140,.7);
+    animation: pop .35s cubic-bezier(.34,1.56,.64,1);
+    position: relative;
+  }
+  @keyframes pop { from{transform:scale(.8);opacity:0;} to{transform:scale(1);opacity:1;} }
+  .modal .pop-icon { font-size: 42px; animation: bounce 1s infinite; display: inline-block; }
+  @keyframes bounce { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-8px);} }
+  .modal h2 { margin: 6px 0 4px; font-size: 26px; font-weight: 800; }
+  .winner {
+    margin: 14px 0 8px; font-size: 40px; font-weight: 800; line-height: 1.05;
+    background: linear-gradient(90deg,#fde68a,#ffffff,#fecdd3);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .winner-sub { color: #fde68a; font-weight: 600; font-size: 16px; margin: 0 0 22px; letter-spacing: .02em; }
+  .modal-btns { display: flex; gap: 12px; justify-content: center; }
+  .btn-light { padding: 10px 22px; border-radius: 999px; background: #fff; color: #2b1055; font-weight: 700; }
+  .btn-outline { padding: 10px 22px; border-radius: 999px; background: transparent; color: #fff; border: 2px solid rgba(255,255,255,.6); font-weight: 700; }
+  .btn-outline:hover { background: rgba(255,255,255,.15); }
+  .close-x {
+    position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(255,255,255,.15); color: #fff; font-size: 18px;
+  }
+</style>
+</head>
+<body>
+
+<div class="orbs">
+  <div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+  <div class="orb o4"></div><div class="orb o5"></div>
+</div>
+
+<div class="wrap">
+  <span class="badge">Party Night</span>
+  <h1>Spin the Wheel</h1>
+  <p class="sub">Tap spin and let fate pick the next game. Turn up the volume — the party is on.</p>
+
+  <div class="wheel-area">
+    <div class="pointer">
+      <svg width="72" height="88" viewBox="0 0 72 88" fill="none">
+        <defs>
+          <linearGradient id="arrowGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#FFF3B0"/>
+            <stop offset="55%" stop-color="#FFC34D"/>
+            <stop offset="100%" stop-color="#FF7A2D"/>
+          </linearGradient>
+        </defs>
+        <path d="M36 86 L4 30 Q4 14 20 10 L52 10 Q68 14 68 30 Z"
+              fill="url(#arrowGrad)" stroke="#0B0720" stroke-width="4" stroke-linejoin="round"/>
+        <circle cx="36" cy="26" r="6" fill="#0B0720"/>
+      </svg>
+    </div>
+
+    <div class="wheel-wrap">
+      <div class="glow"></div>
+      <canvas id="wheel"></canvas>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="spin-btn" id="spinBtn">✨ SPIN!</button>
+    <button class="icon-btn" id="resetBtn" title="Reset">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>
+      </svg>
+    </button>
+    <button class="icon-btn" id="muteBtn" title="Mute">
+      <svg id="muteIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="footer">Made for game nights • Keep spinning</div>
+</div>
+
+<div class="backdrop" id="backdrop">
+  <div class="modal">
+    <button class="close-x" id="closeX">×</button>
+    <div class="pop-icon">🎉</div>
+    <h2>It's time for...</h2>
+    <div class="winner" id="winnerText">—</div>
+    <div class="winner-sub" id="winnerSub"></div>
+    <div class="modal-btns">
+      <button class="btn-light" id="spinAgain">Spin Again</button>
+      <button class="btn-outline" id="closeBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const OPTIONS = [
   { title: "MIC DROP MOMENT",        sub: "Sing a song (solo or duet)",                         color: "#E91E63" },
   { title: "DANCE FLOOR TAKEOVER",   sub: "Freestyle / Duet dance",                             color: "#FF6B1A" },
   { title: "FACULTY MODE ON",        sub: "Act like your favourite faculty",                    color: "#7A2BD6" },
